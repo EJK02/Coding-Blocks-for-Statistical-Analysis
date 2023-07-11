@@ -1,0 +1,110 @@
+%load_ext rpy2.ipython
+
+
+%%R
+library(baseballr)
+batting2022 <- bref_daily_batter("2022-03-01", "2022-11-06")
+
+
+%R -o batting2022
+
+
+import pandas as pd
+print("Batting dimensions:", batting2022.shape, '\n')
+print("Batting columns:", list(batting2022.columns), '\n')
+print(batting2022.head(3))
+
+
+cols = ['Name', 'season', 'AB', 'H', 'SO', 'HR']
+batting2022_temp = batting2022[cols].rename(columns={'season':'Year'})
+
+batting2022_trimmed = batting2022_temp.sort_values(by=['HR'], ascending=False)[:5]
+print(batting2022_trimmed)
+
+
+%%R
+library(Lahman)
+data(Batting)
+data(People)
+
+
+%R -o Batting
+
+
+print("Batting dimensions:", Batting.shape, '\n')
+print("Batting columns:", list(Batting.columns), '\n')
+print(Batting.head(3))
+
+
+Batting = Batting[(Batting.yearID > 2016) & (Batting.yearID != 2020)]
+
+cols = ['playerID', 'yearID', 'AB', 'H', 'SO', 'HR']
+Batting = Batting[cols]
+
+print(Batting.head(3))
+
+
+%R -o People
+
+print("People columns : ", list(People.columns) , '\n')
+
+
+cols = ['playerID', 'nameFirst', 'nameLast']
+names = People[cols]
+
+print(names.head(3))
+
+
+HR_top_five = HR_top_five.merge(names, how = 'left',  on = 'playerID')
+
+HR_top_five['Name'] = HR_top_five[['nameFirst', 'nameLast']].apply(" ".join, axis=1)
+
+HR_top_five.rename(columns={'yearID':'Year'}, inplace=True)
+                
+HR_top_five.head(3)
+
+
+cols = ['Name', 'Year', 'AB', 'H', 'SO', 'HR']
+
+HR_top_five = HR_top_five[cols]
+
+HR_top_five = pd.concat([HR_top_five, batting2022_trimmed])
+
+HR_top_five['NameIndex'] = HR_top_five.Year.astype(str) + ' ' + HR_top_five.Name
+
+HR_top_five.head(3)
+
+
+%%R -i HR_top_five
+library(ggplot2)
+library(tidyr)
+
+HR_plot_friendly <- tidyr::pivot_longer(HR_top_five, cols=c('SO', 'HR'), 
+                                        names_to='variable', 
+                                        values_to="value")
+
+ggplot(HR_plot_friendly, aes(x=NameIndex, y=value, fill=variable)) +
+    geom_bar(stat='identity', position='dodge') + 
+    ggtitle('HR versus Strike Outs in full MLB seasons 2016-2022 for HR leaders') +
+    xlab('Players by season') +
+    ylab('HR v SO') +
+    scale_fill_manual(values = c("004f98", "#ff3f3f")) +
+    theme(axis.text.x = element_text(angle = 50,  hjust=1))
+
+ggsave("HR_to_SO.png", width=12, height=8, units = "in")
+
+
+%%R
+H_plot_friendly <- tidyr::pivot_longer(HR_top_five, cols=c('AB', 'H'), 
+                                        names_to='variable', 
+                                        values_to="value")
+
+ggplot(H_plot_friendly, aes(x=NameIndex, y=value, fill=variable)) +
+    geom_bar(stat='identity', position='dodge') + 
+    ggtitle('Hits versus At-bats in full MLB seasons 2016-2022 for HR leaders') +
+    xlab('Players by season') +
+    ylab('H v AB') +
+    scale_fill_manual(values = c("#ff3f3f", "004f98")) +
+    theme(axis.text.x = element_text(angle = 50,  hjust=1))
+
+ggsave("H_to_AB.png", width=12, height=8, units = "in")
